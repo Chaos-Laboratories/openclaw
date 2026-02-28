@@ -80,10 +80,10 @@ export async function buildEmbeddedExtensionFactories(params: {
   // 1) Branch-isolated context (opt-in). If enabled, it should run before other
   // context modifiers so it can deterministically constrain the payload.
   if (params.cfg?.agents?.defaults?.branchContext?.enabled) {
-    // Prevent recursion: the branch classifier itself runs an embedded LLM call.
-    // Never enable branch-context rewriting inside that classifier call.
+    // Prevent recursion: the branch classifier/summarizer run embedded LLM calls.
+    // Never enable branch-context rewriting inside those helper calls.
     const sk = params.sessionKey ?? "";
-    if (sk.startsWith("temp:branch-classifier")) {
+    if (sk.startsWith("temp:branch-")) {
       return factories;
     }
 

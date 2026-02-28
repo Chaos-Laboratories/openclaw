@@ -33,6 +33,13 @@ export async function loadBranchSessionState(params: {
     parsed.outboundMaxTokens = params.outboundMaxTokens;
     parsed.softThresholdTokens = params.softThresholdTokens;
     parsed.hardThresholdTokens = params.hardThresholdTokens;
+
+    parsed.turnCount = Number.isFinite(parsed.turnCount) ? parsed.turnCount : 0;
+    parsed.lastSummaryAt =
+      parsed.lastSummaryAt === null || Number.isFinite(parsed.lastSummaryAt)
+        ? parsed.lastSummaryAt
+        : null;
+
     return parsed;
   } catch {
     const now = Date.now();
@@ -53,6 +60,8 @@ export async function loadBranchSessionState(params: {
       hardThresholdTokens: params.hardThresholdTokens,
       activeBranchId: root.id,
       branches: { [root.id]: root },
+      turnCount: 0,
+      lastSummaryAt: null,
     };
   }
 }

@@ -35,6 +35,8 @@ describe("branch-context extension", () => {
         softThresholdTokens: 50000,
         hardThresholdTokens: 100000,
         activeBranchId: "b_001",
+        turnCount: 0,
+        lastSummaryAt: null,
         branches: {
           b_001: {
             id: "b_001",

@@ -14,8 +14,36 @@ import branchContextExtension, {
   setBranchContextRuntime,
   type BranchSessionState,
 } from "../pi-extensions/branch-context/index.js";
+import { refreshBranchSummaryWithLlm } from "../pi-extensions/branch-context/summarizer.js";
 
 const log = createSubsystemLogger("agents/branch-context");
+
+function applySummaryPatch(
+  state: BranchSessionState,
+  patch: {
+    title?: string;
+    summary?: string;
+    keyDecisions?: string[];
+    activeObjectives?: string[];
+  },
+): void {
+  const active = state.branches[state.activeBranchId];
+  if (!active) {
+    return;
+  }
+  if (typeof patch.title === "string" && patch.title.trim()) {
+    active.title = patch.title.trim().slice(0, 120);
+  }
+  if (typeof patch.summary === "string") {
+    active.summary = patch.summary;
+  }
+  if (Array.isArray(patch.keyDecisions)) {
+    active.keyDecisions = patch.keyDecisions;
+  }
+  if (Array.isArray(patch.activeObjectives)) {
+    active.activeObjectives = patch.activeObjectives;
+  }
+}
 
 export async function initBranchContextRuntime(params: {
   cfg: OpenClawConfig | undefined;
@@ -82,8 +110,32 @@ export async function initBranchContextRuntime(params: {
     }
   }
 
-  // Stage B: deterministic state update (cheap) until we implement an LLM summarizer.
+  // Stage B: deterministic state update.
   appendToActiveSummary(state, params.userMessage);
+  state.turnCount += 1;
+
+  // Periodic summary refresh (small call) to keep branch summary compressed.
+  // We do this sparingly to avoid doubling per-turn cost.
+  const shouldRefreshSummary = state.turnCount % 6 === 0;
+  if (shouldRefreshSummary) {
+    const active = state.branches[state.activeBranchId];
+    if (active) {
+      const patch = await refreshBranchSummaryWithLlm({
+        cfg: params.cfg,
+        agentId: params.agentId,
+        agentDir: params.agentDir,
+        workspaceDir: params.workspaceDir,
+        provider: params.provider,
+        model: params.model,
+        branch: active,
+        latestUserMessage: params.userMessage,
+      });
+      if (patch) {
+        applySummaryPatch(state, patch);
+        state.lastSummaryAt = Date.now();
+      }
+    }
+  }
 
   // Compaction on state size (approx).
   const approxChars = JSON.stringify(state).length;

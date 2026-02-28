@@ -9,6 +9,7 @@ export { compactBranchState } from "./compactor.js";
 export type { BranchSessionState, BranchRecord, BranchState } from "./types.js";
 export type { BranchClassification } from "./classifier.js";
 export { classifyBranchWithLlm } from "./classifier.js";
+export { refreshBranchSummaryWithLlm } from "./summarizer.js";
 export {
   createNewBranch,
   setActiveBranch,
