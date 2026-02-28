@@ -153,7 +153,9 @@ export async function initBranchContextRuntime(params: {
     outboundMaxTokens,
     softThresholdTokens,
     hardThresholdTokens,
+    stateFile,
     state,
+    referencesRequired: classification?.references_required ?? [],
     warn: (message) => log.warn(message),
   });
 

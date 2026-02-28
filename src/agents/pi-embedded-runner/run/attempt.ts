@@ -51,6 +51,7 @@ import {
   validateGeminiTurns,
 } from "../../pi-embedded-helpers.js";
 import { subscribeEmbeddedPiSession } from "../../pi-embedded-subscribe.js";
+import { forceBranchContextCompaction } from "../../pi-extensions/branch-context/recovery.js";
 import { createPreparedEmbeddedPiSettingsManager } from "../../pi-project-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
 import { createOpenClawCodingTools, resolveToolLoopDetectionConfig } from "../../pi-tools.js";
@@ -1321,16 +1322,46 @@ export async function runEmbeddedAttempt(
           }
 
           // Only pass images option if there are actually images to pass
-          // Branch-context absolute limiter: estimate the outbound payload size and abort early if it exceeds budget.
-          const outboundMax = resolveOutboundMaxTokens(params.config);
-          if (outboundMax) {
-            const est = estimateOutboundTokens({
-              systemPrompt: systemPromptText ?? "",
-              prompt: effectivePrompt,
-              historyMessages: activeSession.messages as unknown as Array<{ content?: unknown }>,
-            });
-            if (est > outboundMax) {
-              throw new Error(`[outbound-max] estimatedTokens=${est} max=${outboundMax}`);
+          const doPromptOnce = async () => {
+            // Branch-context absolute limiter: estimate the outbound payload size and abort early if it exceeds budget.
+            const outboundMax = resolveOutboundMaxTokens(params.config);
+            if (outboundMax) {
+              const est = estimateOutboundTokens({
+                systemPrompt: systemPromptText ?? "",
+                prompt: effectivePrompt,
+                historyMessages: activeSession.messages as unknown as Array<{ content?: unknown }>,
+              });
+              if (est > outboundMax) {
+                throw new Error("[outbound-max] estimatedTokens=" + est + " max=" + outboundMax);
+              }
+            }
+
+            // Only pass images option if there are actually images to pass
+            if (imageResult.images.length > 0) {
+              await abortable(
+                activeSession.prompt(effectivePrompt, { images: imageResult.images }),
+              );
+            } else {
+              await abortable(activeSession.prompt(effectivePrompt));
+            }
+          };
+
+          try {
+            await doPromptOnce();
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("[outbound-max]")) {
+              // Deterministic recovery: compact branch-context state (no extra LLM call), rebuild session context, and retry once.
+              const did = await forceBranchContextCompaction({ sessionManager, mode: "hard" });
+              if (did) {
+                const sessionContext = sessionManager.buildSessionContext();
+                activeSession.agent.replaceMessages(sessionContext.messages);
+                await doPromptOnce();
+              } else {
+                throw err;
+              }
+            } else {
+              throw err;
             }
           }
 
@@ -1418,6 +1449,24 @@ export async function runEmbeddedAttempt(
         sessionIdUsed = snapshotSelection.sessionIdUsed;
 
         if (promptError && promptErrorSource === "prompt" && !compactionOccurredThisAttempt) {
+          // branch-context recovery: if we exceeded outbound max, force a hard compaction pass
+          // on the branch state and ask the caller to retry (the outer run loop will do so).
+          const msg =
+            promptError instanceof Error ? promptError.message : JSON.stringify(promptError);
+          if (msg.includes("[outbound-max]")) {
+            try {
+              const did = await forceBranchContextCompaction({
+                sessionManager,
+                mode: "hard",
+              });
+              if (did) {
+                throw promptError;
+              }
+            } catch {
+              // fall through to normal error persistence
+            }
+          }
+
           try {
             sessionManager.appendCustomEntry("openclaw:prompt-error", {
               timestamp: Date.now(),

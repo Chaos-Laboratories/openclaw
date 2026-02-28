@@ -12,6 +12,7 @@ function buildBranchOverviewText(params: {
   summary: string;
   keyDecisions: string[];
   activeObjectives: string[];
+  referenced?: Array<{ title: string; summary: string }>;
 }): string {
   const lines: string[] = [];
   lines.push(`Active branch: ${params.title}`);
@@ -30,6 +31,13 @@ function buildBranchOverviewText(params: {
       lines.push(`- ${o}`);
     }
   }
+  if (params.referenced?.length) {
+    lines.push("\nReferenced branches:");
+    for (const r of params.referenced.slice(0, 4)) {
+      const one = r.summary.trim().split("\n")[0] ?? "";
+      lines.push(`- ${r.title}: ${one.slice(0, 200)}`);
+    }
+  }
   return lines.join("\n").trim();
 }
 
@@ -37,7 +45,6 @@ function onContext(
   api: ExtensionAPI,
   fn: (event: ContextEvent, ctx: ExtensionContext) => unknown,
 ): void {
-  // Avoid referencing an unbound method (this-context hazards).
   const on = (name: unknown, handler: unknown) => {
     (api as unknown as { on: (n: unknown, h: unknown) => void }).on(name, handler);
   };
@@ -65,11 +72,17 @@ const branchContextExtension: ExtensionFactory = (api: ExtensionAPI): void => {
       return undefined;
     }
 
+    const referenced = (runtime.referencesRequired ?? [])
+      .map((id) => state.branches[id])
+      .filter(Boolean)
+      .map((b) => ({ title: b.title, summary: b.summary }));
+
     const branchText = buildBranchOverviewText({
       title: active.title,
       summary: active.summary,
       keyDecisions: active.keyDecisions,
       activeObjectives: active.activeObjectives,
+      referenced,
     });
 
     const nextMessages: unknown[] = [{ role: "assistant", content: branchText }, lastUser];

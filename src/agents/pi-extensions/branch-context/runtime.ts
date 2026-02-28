@@ -6,7 +6,10 @@ export type BranchContextRuntime = {
   outboundMaxTokens: number;
   softThresholdTokens: number;
   hardThresholdTokens: number;
+  stateFile: string;
   state: BranchSessionState;
+  // Optional branch references requested by classifier (ids).
+  referencesRequired?: string[];
   warn?: (message: string) => void;
 };
 

@@ -28,6 +28,7 @@ describe("branch-context extension", () => {
       outboundMaxTokens: 15000,
       softThresholdTokens: 50000,
       hardThresholdTokens: 100000,
+      stateFile: "/tmp/test.json",
       state: {
         version: 1,
         updatedAt: Date.now(),
