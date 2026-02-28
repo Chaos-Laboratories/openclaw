@@ -156,6 +156,23 @@ export type AgentDefaultsConfig = {
   cliBackends?: Record<string, CliBackendConfig>;
   /** Opt-in: prune old tool results from the LLM context to reduce token usage. */
   contextPruning?: AgentContextPruningConfig;
+  /**
+   * Opt-in: branch-isolated context management with deterministic outbound token caps.
+   *
+   * When enabled, OpenClaw will synthesize a minimal context for the model based on a
+   * per-session branch summary/state and the current user message, preventing full-session
+   * history dumps from reaching the model.
+   */
+  branchContext?: {
+    /** Enable the branch context architecture (default: off). */
+    enabled?: boolean;
+    /** Absolute outbound limiter for any model request (default: 15000). */
+    outboundMaxTokens?: number;
+    /** Soft threshold for internal branch-state growth (default: 50000). */
+    softThresholdTokens?: number;
+    /** Hard threshold for internal branch-state growth (default: 100000). */
+    hardThresholdTokens?: number;
+  };
   /** Compaction tuning and pre-compaction memory flush behavior. */
   compaction?: AgentCompactionConfig;
   /** Embedded Pi runner hardening and compatibility controls. */

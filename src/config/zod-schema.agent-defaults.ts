@@ -77,6 +77,17 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+
+    branchContext: z
+      .object({
+        enabled: z.boolean().optional(),
+        outboundMaxTokens: z.number().int().positive().optional(),
+        softThresholdTokens: z.number().int().positive().optional(),
+        hardThresholdTokens: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
+
     compaction: z
       .object({
         mode: z.union([z.literal("default"), z.literal("safeguard")]).optional(),

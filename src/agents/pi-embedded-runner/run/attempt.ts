@@ -756,12 +756,18 @@ export async function runEmbeddedAttempt(
 
       // Sets compaction/pruning runtime state and returns extension factories
       // that must be passed to the resource loader for the safeguard to be active.
-      const extensionFactories = buildEmbeddedExtensionFactories({
+      const extensionFactories = await buildEmbeddedExtensionFactories({
         cfg: params.config,
         sessionManager,
         provider: params.provider,
         modelId: params.modelId,
         model: params.model,
+        agentDir,
+        agentId: sessionAgentId,
+        sessionKey: params.sessionKey ?? params.sessionId,
+        sessionId: params.sessionId,
+        workspaceDir: resolvedWorkspace,
+        userMessage: params.prompt,
       });
       // Only create an explicit resource loader when there are extension factories
       // to register; otherwise let createAgentSession use its built-in default.

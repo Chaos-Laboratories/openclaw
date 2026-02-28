@@ -10,6 +10,7 @@ import { setContextPruningRuntime } from "../pi-extensions/context-pruning/runti
 import { computeEffectiveSettings } from "../pi-extensions/context-pruning/settings.js";
 import { makeToolPrunablePredicate } from "../pi-extensions/context-pruning/tools.js";
 import { ensurePiCompactionReserveTokens } from "../pi-settings.js";
+import { initBranchContextRuntime } from "./branch-context.js";
 import { isCacheTtlEligibleProvider, readLastCacheTtlTimestamp } from "./cache-ttl.js";
 
 function resolveContextWindowTokens(params: {
@@ -61,14 +62,48 @@ function resolveCompactionMode(cfg?: OpenClawConfig): "default" | "safeguard" {
   return cfg?.agents?.defaults?.compaction?.mode === "safeguard" ? "safeguard" : "default";
 }
 
-export function buildEmbeddedExtensionFactories(params: {
+export async function buildEmbeddedExtensionFactories(params: {
   cfg: OpenClawConfig | undefined;
   sessionManager: SessionManager;
   provider: string;
   modelId: string;
   model: Model<Api> | undefined;
-}): ExtensionFactory[] {
+  agentDir: string;
+  agentId: string;
+  sessionKey: string;
+  sessionId: string;
+  workspaceDir: string;
+  userMessage: string;
+}): Promise<ExtensionFactory[]> {
   const factories: ExtensionFactory[] = [];
+
+  // 1) Branch-isolated context (opt-in). If enabled, it should run before other
+  // context modifiers so it can deterministically constrain the payload.
+  if (params.cfg?.agents?.defaults?.branchContext?.enabled) {
+    // Prevent recursion: the branch classifier itself runs an embedded LLM call.
+    // Never enable branch-context rewriting inside that classifier call.
+    const sk = params.sessionKey ?? "";
+    if (sk.startsWith("temp:branch-classifier")) {
+      return factories;
+    }
+
+    const init = await initBranchContextRuntime({
+      cfg: params.cfg,
+      sessionManager: params.sessionManager,
+      agentDir: params.agentDir,
+      agentId: params.agentId,
+      sessionKey: params.sessionKey,
+      workspaceDir: params.workspaceDir,
+      provider: params.provider,
+      model: params.modelId,
+      userMessage: params.userMessage,
+    });
+    if (init.factory) {
+      factories.push(init.factory);
+    }
+  }
+
+  // 2) Compaction safeguard
   if (resolveCompactionMode(params.cfg) === "safeguard") {
     const compactionCfg = params.cfg?.agents?.defaults?.compaction;
     const contextWindowInfo = resolveContextWindowInfo({
@@ -87,10 +122,13 @@ export function buildEmbeddedExtensionFactories(params: {
     });
     factories.push(compactionSafeguardExtension);
   }
+
+  // 3) Context pruning (tool-result pruning)
   const pruningFactory = buildContextPruningFactory(params);
   if (pruningFactory) {
     factories.push(pruningFactory);
   }
+
   return factories;
 }
 

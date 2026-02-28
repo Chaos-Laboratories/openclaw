@@ -544,12 +544,18 @@ export async function compactEmbeddedPiSessionDirect(
       });
       // Sets compaction/pruning runtime state and returns extension factories
       // that must be passed to the resource loader for the safeguard to be active.
-      const extensionFactories = buildEmbeddedExtensionFactories({
+      const extensionFactories = await buildEmbeddedExtensionFactories({
         cfg: params.config,
         sessionManager,
         provider,
         modelId,
         model,
+        agentDir,
+        agentId: sessionAgentId,
+        sessionKey: params.sessionKey ?? params.sessionId,
+        sessionId: params.sessionId,
+        workspaceDir: resolvedWorkspace,
+        userMessage: "(compaction)",
       });
       // Only create an explicit resource loader when there are extension factories
       // to register; otherwise let createAgentSession use its built-in default.
