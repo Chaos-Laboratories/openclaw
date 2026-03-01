@@ -38,7 +38,7 @@ export function createNewBranch(state: BranchSessionState, title: string): Branc
   };
   state.branches[id] = created;
   state.activeBranchId = id;
-  // demote others
+  // Demote others.
   for (const b of Object.values(state.branches)) {
     if (b.id !== id && b.state === "active") {
       b.state = "dormant";
@@ -75,8 +75,6 @@ export function appendToActiveSummary(state: BranchSessionState, userMessage: st
   if (!msg) {
     return;
   }
-  // Deterministic summary update (cheap): just record recent user intent.
-  // (We can upgrade this to an LLM summarizer later.)
   const line = `User: ${msg.replace(/\s+/g, " ").slice(0, 240)}`;
   const existing = (active.summary || "").trim();
   const next = existing ? `${existing}\n${line}` : line;

@@ -3,16 +3,15 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import branchContextExtension, {
   appendToActiveSummary,
-  classifyBranchWithLlm,
+  applyLifecycleUpdate,
   compactBranchState,
   createNewBranch,
   loadBranchSessionState,
-  markBranchState,
   resolveBranchContextStateFile,
   saveBranchSessionState,
-  setActiveBranch,
   setBranchContextRuntime,
   type BranchSessionState,
+  classifyBranchWithLlm,
 } from "../pi-extensions/branch-context/index.js";
 import { refreshBranchSummaryWithLlm } from "../pi-extensions/branch-context/summarizer.js";
 
@@ -94,20 +93,14 @@ export async function initBranchContextRuntime(params: {
     state,
   });
 
-  if (classification) {
-    if (classification.branch_action === "new") {
-      createNewBranch(state, classification.new_branch_title ?? "New branch");
-    } else if (classification.target_branch_id) {
-      if (classification.branch_action === "resolve") {
-        markBranchState(state, classification.target_branch_id, "resolved");
-      }
-      if (
-        classification.branch_action === "reopen" ||
-        classification.branch_action === "continue"
-      ) {
-        setActiveBranch(state, classification.target_branch_id);
-      }
-    }
+  // Apply lifecycle rules (continue/reopen/new/resolve, single-active enforcement, references).
+  const { previousActiveBranchId, referencesRequired } = applyLifecycleUpdate({
+    state,
+    classification,
+  });
+
+  if (classification?.branch_action === "new") {
+    createNewBranch(state, classification.new_branch_title ?? "New branch");
   }
 
   // Stage B: deterministic state update.
@@ -115,7 +108,6 @@ export async function initBranchContextRuntime(params: {
   state.turnCount += 1;
 
   // Periodic summary refresh (small call) to keep branch summary compressed.
-  // We do this sparingly to avoid doubling per-turn cost.
   const shouldRefreshSummary = state.turnCount % 6 === 0;
   if (shouldRefreshSummary) {
     const active = state.branches[state.activeBranchId];
@@ -155,9 +147,13 @@ export async function initBranchContextRuntime(params: {
     hardThresholdTokens,
     stateFile,
     state,
-    referencesRequired: classification?.references_required ?? [],
+    // A→B→A exclusion is enforced by only injecting referenced branches.
+    referencesRequired,
     warn: (message) => log.warn(message),
   });
+
+  // Suppress unused warning until we add a test for A→B→A explicitly.
+  void previousActiveBranchId;
 
   return { factory: branchContextExtension, stateFile, state };
 }

@@ -11,8 +11,16 @@ export type { BranchClassification } from "./classifier.js";
 export { classifyBranchWithLlm } from "./classifier.js";
 export { refreshBranchSummaryWithLlm } from "./summarizer.js";
 export {
+  applyLifecycleUpdate,
+  getAtoBtoAExclusion,
+  resolveBranch,
+  reopenBranch,
+  resolveReferencedBranchIds,
+} from "./lifecycle.js";
+export {
   createNewBranch,
   setActiveBranch,
   markBranchState,
   appendToActiveSummary,
 } from "./branch-manager.js";
+export { forceBranchContextCompaction } from "./recovery.js";
