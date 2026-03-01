@@ -7,6 +7,17 @@ import type {
 import { getBranchContextRuntime } from "./runtime.js";
 import { estimateTokensForMessages } from "./token-estimator.js";
 
+type TextBlock = { type: "text"; text: string };
+
+type MessageLike = {
+  role?: unknown;
+  content?: unknown;
+};
+
+function toTextBlocks(text: string): TextBlock[] {
+  return [{ type: "text", text }];
+}
+
 function buildBranchOverviewText(params: {
   title: string;
   summary: string;
@@ -65,9 +76,10 @@ const branchContextExtension: ExtensionFactory = (api: ExtensionAPI): void => {
     }
 
     const lastUser = [...(event.messages as unknown[])].toReversed().find((m) => {
-      const msg = m as { role?: unknown } | null;
+      const msg = m as MessageLike | null;
       return msg?.role === "user";
-    });
+    }) as MessageLike | undefined;
+
     if (!lastUser) {
       return undefined;
     }
@@ -85,12 +97,21 @@ const branchContextExtension: ExtensionFactory = (api: ExtensionAPI): void => {
       referenced,
     });
 
-    const nextMessages: unknown[] = [{ role: "assistant", content: branchText }, lastUser];
+    // IMPORTANT: Pi messages generally expect content to be an array of blocks.
+    // Using string content can break downstream tooling (e.g., flatMap on blocks).
+    const overviewMessage = {
+      role: "assistant",
+      content: toTextBlocks(branchText),
+    };
+
+    const nextMessages: unknown[] = [overviewMessage, lastUser];
 
     const estimate = estimateTokensForMessages(nextMessages);
     if (estimate.estimatedTokens > runtime.outboundMaxTokens) {
       const clamped = branchText.slice(0, 1500);
-      return { messages: [{ role: "assistant", content: clamped }, lastUser] };
+      return {
+        messages: [{ role: "assistant", content: toTextBlocks(clamped) }, lastUser],
+      };
     }
 
     if (estimate.estimatedTokens > runtime.softThresholdTokens * 0.8) {

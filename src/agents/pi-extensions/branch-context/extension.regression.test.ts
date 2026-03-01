@@ -18,6 +18,21 @@ function makeApi(): TestApi {
 }
 
 describe("branch-context (regression)", () => {
+  function getText(content: unknown): string {
+    if (typeof content === "string") {
+      return content;
+    }
+    if (!Array.isArray(content)) {
+      return "";
+    }
+    return content
+      .map((b) => {
+        const block = b as { type?: unknown; text?: unknown } | null;
+        return block?.type === "text" ? (typeof block?.text === "string" ? block.text : "") : "";
+      })
+      .join("\n");
+  }
+
   it("context is reduced to [overview + last user] (no full-session forwarding)", () => {
     const api = makeApi();
     void branchContextExtension(api);
@@ -72,9 +87,9 @@ describe("branch-context (regression)", () => {
     const out = handler(event, ctx);
     expect(out.messages).toHaveLength(2);
     expect(out.messages[1]?.content).toBe("LATEST USER");
-    expect(String(out.messages[0]?.content)).toContain("Active branch");
+    expect(getText(out.messages[0]?.content)).toContain("Active branch");
     // Ensure older transcript text isn't forwarded.
-    expect(String(out.messages[0]?.content)).not.toContain("old assistant");
-    expect(String(out.messages[0]?.content)).not.toContain("old user");
+    expect(getText(out.messages[0]?.content)).not.toContain("old assistant");
+    expect(getText(out.messages[0]?.content)).not.toContain("old user");
   });
 });
