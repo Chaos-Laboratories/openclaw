@@ -112,13 +112,7 @@ export function applyLifecycleUpdate(params: {
   } | null;
 }): { previousActiveBranchId: string; referencesRequired: string[] } {
   const previousActiveBranchId = params.state.activeBranchId;
-
-  const referencesRequired = params.classification
-    ? resolveReferencedBranchIds({
-        state: params.state,
-        candidateIds: params.classification.references_required ?? [],
-      })
-    : [];
+  let referencesRequired: string[] = [];
 
   if (!params.classification) {
     return { previousActiveBranchId, referencesRequired };
@@ -138,6 +132,11 @@ export function applyLifecycleUpdate(params: {
 
   enforceSingleActiveBranch(params.state);
   archiveResolvedBranches(params.state);
+
+  referencesRequired = resolveReferencedBranchIds({
+    state: params.state,
+    candidateIds: params.classification.references_required ?? [],
+  });
 
   return { previousActiveBranchId, referencesRequired };
 }
